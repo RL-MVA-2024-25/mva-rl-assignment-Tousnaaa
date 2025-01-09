@@ -111,7 +111,7 @@ class ProjectAgent:
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.q_network.eval()
         
-from tqdm import tqdm
+
  
            
 def train_and_save_agent():
@@ -119,7 +119,7 @@ def train_and_save_agent():
     agent = ProjectAgent()
     num_episodes = 500
     target_update_frequency = 10
-    for episode in tqdm(range(num_episodes)):
+    for episode in range(num_episodes):
         print(f"Starting episode {episode+1}/{num_episodes}")
         observation,_ = env.reset()
         total_reward = 0
