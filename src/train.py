@@ -7,7 +7,7 @@ from env_hiv import HIVPatient
 env = TimeLimit(
     env=HIVPatient(domain_randomization=False), max_episode_steps=200
 )
-save_path = "PPO_hiv_model"
+save_path = "PPO_hiv_model.pth"
 # Policy Network
 class PolicyNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
@@ -17,8 +17,7 @@ class PolicyNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(128, 256),
             nn.ReLU(),
-            nn.Linear(256, action_dim),
-            nn.Softmax(dim=-1)
+            nn.Linear(256, action_dim)
         )
 
     def forward(self, state):
@@ -45,22 +44,25 @@ class ProjectAgent:
         self.action_dim = 4
         self.gamma = 0.99
         self.lam = 0.95  
-        self.epsilon = 0.2  
+        self.epsilon = 1.0
+        self.epsilon_min = 0.01
         self.batch_size = 64
         self.num_epochs = 10
         self.replay_buffer = []
 
         self.policy_network = PolicyNetwork(self.state_dim, self.action_dim)
         self.value_network = ValueNetwork(self.state_dim)
-        self.policy_optimizer = optim.Adam(self.policy_network.parameters(), lr=1e-4)
-        self.value_optimizer = optim.Adam(self.value_network.parameters(), lr=1e-4)
+        self.policy_optimizer = optim.Adam(self.policy_network.parameters(), lr=1e-3)
+        self.value_optimizer = optim.Adam(self.value_network.parameters(), lr=1e-3)
 
     def act(self, observation,use_random=False):
         if use_random:
             return np.random.randint(0,self.action_dim-1)
         state = torch.FloatTensor(observation).unsqueeze(0)
         with torch.no_grad():
+            
             action_probs = self.policy_network(state)
+            
         action = np.random.choice(self.action_dim, p=action_probs.numpy()[0])
         return action
 
@@ -120,11 +122,14 @@ class ProjectAgent:
         }, path)
 
     def load(self):
-        checkpoint = torch.load(save_path)
+        checkpoint = torch.load("PPO_hiv_model.pth",map_location="cpu")
+        
         self.policy_network.load_state_dict(checkpoint['policy_network'])
         self.value_network.load_state_dict(checkpoint['value_network'])
         self.policy_network.eval()
         self.value_network.eval()
+        print("Checkpoint loaded")
+        
 
 def train_and_save_agent():
     env = TimeLimit(env=HIVPatient(domain_randomization=False), max_episode_steps=200)
