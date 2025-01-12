@@ -164,7 +164,7 @@ def train_and_save_agent():
             file = Path("inter.txt")
             with open(file,mode="w") as f :
                 f.write(f"{episode +1}: {score}\n")
-        print(f"Total reward for this episode : {total_reward}")  
+        print(f"Reward : {total_reward}, Epsilon : {agent.epsilon}")  
         if total_reward > max_episode_reward:
             max_episode_reward = total_reward
             print(f"New max reward, saving model to checkpoints/model_rew_{total_reward}")

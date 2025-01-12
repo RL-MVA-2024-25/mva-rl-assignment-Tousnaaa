@@ -132,7 +132,7 @@ class HIVPatient(gym.Env):
         self.dE = 0.25  # maximum death rate (per day)
         self.Kd = 500  # saturation constant for death (cells per mL)
         self.deltaE = 0.1  # natural death rate (per day)
-
+    
     def reset(
         self, *, seed: int | None = None, options: dict | None = None, mode="unhealthy"
     ):
