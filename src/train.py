@@ -1,148 +1,165 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
 from gymnasium.wrappers import TimeLimit
 from env_hiv import HIVPatient
-import torch 
-import torch.nn as nn 
-import torch.optim as optim
-import random
-import numpy as np
-from collections import deque
 env = TimeLimit(
     env=HIVPatient(domain_randomization=False), max_episode_steps=200
-)  # The time wrapper limits the number of steps in an episode at 200.
-# Now is the floor is yours to implement the agent and train it.
-save_path = "DQN_hiv_model"
-log_dir = "tensor"
-# You have to implement your own agent.
-# Don't modify the methods names and signatures, but you can add methods.
-# ENJOY!
-
-
-
-class DQNetwork(nn.Module):
+)
+save_path = "PPO_hiv_model"
+# Policy Network
+class PolicyNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(DQNetwork, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 128)
-        self.fc2 = nn.Linear(128, 256)
-        self.fc3 = nn.Linear(256, 256)
-        self.fc4 = nn.Linear(256, 256)
-        self.fc5 = nn.Linear(256, 128)
-        self.fc6 = nn.Linear(128, action_dim)
-    
+        super(PolicyNetwork, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Linear(256, action_dim),
+            nn.Softmax(dim=-1)
+        )
+
     def forward(self, state):
-        x = torch.relu(self.fc1(state))
-        x = torch.relu(self.fc2(x))
-        x = torch.relu(self.fc3(x))
-        x = torch.relu(self.fc4(x))
-        x = torch.relu(self.fc5(x))
-        
-        return self.fc6(x)
-class ReplayBuffer:
-    def __init__(self, capacity):
-        self.buffer = deque(maxlen=capacity)
-    
-    def push(self, state, action, reward, next_state, done):
-        self.buffer.append((state, action, reward, next_state, done))
-    
-    def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-        return (np.array(states), np.array(actions), np.array(rewards),
-                np.array(next_states), np.array(dones))
-    
-    def __len__(self):
-        return len(self.buffer)  
-    
-class ProjectAgent:
-    def __init__(self,model=None):
+        return self.fc(state)
+
+# Value Network
+class ValueNetwork(nn.Module):
+    def __init__(self, state_dim):
+        super(ValueNetwork, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1)
+        )
+
+    def forward(self, state):
+        return self.fc(state)
+
+class PPOAgent:
+    def __init__(self):
         self.state_dim = 6
         self.action_dim = 4
         self.gamma = 0.99
+        self.lam = 0.95  
+        self.epsilon = 0.2  
         self.batch_size = 64
-        self.replay_buffer = ReplayBuffer(10000)
-        
-        
-        self.q_network = DQNetwork(self.state_dim, self.action_dim)
-        self.target_network = DQNetwork(self.state_dim, self.action_dim)
-        self.optimizer = optim.Adam(self.q_network.parameters(), lr =1e-3)
-        self.target_network.load_state_dict(self.q_network.state_dict())
-        self.target_network.eval()
-    def act(self, observation, use_random=False, epsilon = 0.1):
-        if use_random or random.random() < epsilon:
-            return random.randint(0, self.action_dim - 1)
-        else:
-            observation = torch.FloatTensor(observation)
-            q_values = self.q_network(observation)
-            return torch.argmax(q_values).item()
-    
-    def train(self):
-        if len(self.replay_buffer) < self.batch_size:
-            return
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
-        states = torch.FloatTensor(states)
-        actions = torch.LongTensor(actions).unsqueeze(1)
-        
-        rewards = torch.FloatTensor(rewards).unsqueeze(1)
-        next_states = torch.FloatTensor(next_states)
-        dones = torch.FloatTensor(dones).unsqueeze(1)
-        
-        q_values = self.q_network(states).gather(1,actions)
-        
+        self.num_epochs = 10
+        self.replay_buffer = []
+
+        self.policy_network = PolicyNetwork(self.state_dim, self.action_dim)
+        self.value_network = ValueNetwork(self.state_dim)
+        self.policy_optimizer = optim.Adam(self.policy_network.parameters(), lr=1e-4)
+        self.value_optimizer = optim.Adam(self.value_network.parameters(), lr=1e-4)
+
+    def act(self, observation,use_random=False):
+        if use_random:
+            return np.random.randint(0,self.action_dim-1)
+        state = torch.FloatTensor(observation).unsqueeze(0)
         with torch.no_grad():
-            max_next_q_values = self.target_network(next_states).max(1,keepdim=True)[0]
-            target_q_values = rewards + self.gamma * max_next_q_values * (1-dones)
-        
-        loss = nn.MSELoss()(q_values, target_q_values)
-        
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+            action_probs = self.policy_network(state)
+        action = np.random.choice(self.action_dim, p=action_probs.numpy()[0])
+        return action
+
+    def compute_advantages(self, rewards, dones, values, next_values):
+        advantages = []
+        gae = 0
+        for t in reversed(range(len(rewards))):
+            delta = rewards[t] + self.gamma * next_values[t] * (1 - dones[t]) - values[t]
+            gae = delta + self.gamma * self.lam * (1 - dones[t]) * gae
+            advantages.insert(0, gae)
+        returns = [adv + val for adv, val in zip(advantages, values)]
+        return advantages, returns
+
+    def train(self):
+        states, actions, rewards, dones, values, log_probs = zip(*self.replay_buffer)
+        next_values = values[1:] + [0]
+        advantages, returns = self.compute_advantages(rewards, dones, values, next_values)
+
+        states = torch.FloatTensor(states)
+        actions = torch.LongTensor(actions)
+        returns = torch.FloatTensor(returns)
+        advantages = torch.FloatTensor(advantages)
+        old_log_probs = torch.FloatTensor(log_probs)
+
+        for _ in range(self.num_epochs):
             
-    def update_target_network(self):
-        self.target_network.load_state_dict(self.q_network.state_dict())
+            action_probs = self.policy_network(states)
+            dist = torch.distributions.Categorical(action_probs)
+            new_log_probs = dist.log_prob(actions)
+
+            
+            ratios = torch.exp(new_log_probs - old_log_probs)
+
+            
+            surr1 = ratios * advantages
+            surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * advantages
+            policy_loss = -torch.min(surr1, surr2).mean()
+
+            self.policy_optimizer.zero_grad()
+            policy_loss.backward()
+            self.policy_optimizer.step()
+
+            
+            value_preds = self.value_network(states).squeeze()
+            value_loss = nn.MSELoss()(value_preds, returns)
+
+            self.value_optimizer.zero_grad()
+            value_loss.backward()
+            self.value_optimizer.step()
+
+        self.replay_buffer = []
+
     def save(self, path):
         torch.save({
-            'q_network_state_dict': self.q_network.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict()
+            'policy_network': self.policy_network.state_dict(),
+            'value_network': self.value_network.state_dict()
         }, path)
 
     def load(self):
         checkpoint = torch.load(save_path)
-        self.q_network.load_state_dict(checkpoint["q_network_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self.q_network.eval()
-        
+        self.policy_network.load_state_dict(checkpoint['policy_network'])
+        self.value_network.load_state_dict(checkpoint['value_network'])
+        self.policy_network.eval()
+        self.value_network.eval()
 
- 
-           
 def train_and_save_agent():
-    replay_buffer = ReplayBuffer(10000)
-    agent = ProjectAgent()
+    env = TimeLimit(env=HIVPatient(domain_randomization=False), max_episode_steps=200)
+    agent = PPOAgent()
     num_episodes = 500
-    target_update_frequency = 10
+    max_steps = 200
+
     for episode in range(num_episodes):
         print(f"Starting episode {episode+1}/{num_episodes}")
-        observation,_ = env.reset()
+        observation, _ = env.reset()
         total_reward = 0
-        for t in range(200):
+        trajectory = []
+
+        for t in range(max_steps):
             action = agent.act(observation)
-            next_observation,reward , done , _, _ = env.step(action)
-            agent.replay_buffer.push(observation,action,reward,next_observation,done)
-            
+            next_observation, reward, done, _, _ = env.step(action)
+
+            state_value = agent.value_network(torch.FloatTensor(observation).unsqueeze(0)).item()
+            action_prob = agent.policy_network(torch.FloatTensor(observation).unsqueeze(0))[0][action].item()
+
+            trajectory.append((
+                observation, action, reward, done, state_value, np.log(action_prob)
+            ))
+
             observation = next_observation
             total_reward += reward
-            agent.train()
+
             if done:
                 break
-        if episode % target_update_frequency == 0:
-            agent.update_target_network()
-            print("Updated the Target Network.")
-    agent.save(save_path)
-    
-    return None
-    
-    
 
-if __name__== "__main__":
+        # Process trajectory
+        agent.replay_buffer.extend(trajectory)
+        agent.train()
+
+    agent.save("PPO_hiv_model")
+
+if __name__ == "__main__":
     train_and_save_agent()
-    #agent = ProjectAgent()
-    #agent.load()
