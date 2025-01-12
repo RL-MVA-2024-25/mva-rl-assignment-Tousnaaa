@@ -159,7 +159,7 @@ def train_and_save_agent():
             print("Updated target network.")
         if episode == 499 or episode == 999:
             score = evaluate_HIV(agent,5)
-            file = Path("inter.txt"):
+            file = Path("inter.txt")
             with open(file,mode="w") as f :
                 f.write(f"{episode +1}: score\n")
             
