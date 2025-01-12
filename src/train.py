@@ -76,7 +76,7 @@ class PPOAgent:
 
     def train(self):
         states, actions, rewards, dones, values, log_probs = zip(*self.replay_buffer)
-        next_values = values[1:] + [0]
+        next_values = list(values[1:]) + [0]
         advantages, returns = self.compute_advantages(rewards, dones, values, next_values)
 
         states = torch.FloatTensor(states)
