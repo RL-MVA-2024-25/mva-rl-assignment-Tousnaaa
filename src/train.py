@@ -129,8 +129,8 @@ def train_and_save_agent():
     
     agent = ProjectAgent()
     num_episodes = 1000
-    target_update_frequency = 10
-    
+    target_update_frequency = 100
+    max_episode_reward = 0
     for episode in tqdm(range(num_episodes)):
         print(f"Starting episode {episode+1}/{num_episodes}")
         observation, _ = env.reset()
@@ -158,15 +158,18 @@ def train_and_save_agent():
             agent.update_target_network()
             print("Updated target network.")
         if episode == 499 or episode == 999:
-            score = evaluate_HIV(agent,5)
+            score = evaluate_HIV(agent=agent,nb_episode=5)
             file = Path("inter.txt")
             with open(file,mode="w") as f :
-                f.write(f"{episode +1}: score\n")
-            
-            
+                f.write(f"{episode +1}: {score}\n")
+        print(f"Total reward for this episode : {total_reward}")  
+        if total_reward > max_episode_reward:
+            max_episode_reward = total_reward
+            print(f"New max reward, saving model to checkpoints/model_rew_{total_reward}")
+            agent.save(f"checkpoints/model_rew_{total_reward}") 
 
     agent.save("DQN_hiv_model")
-
+    print(f"Max total reward was : {max_episode_reward}")
     
 
 if __name__ == "__main__":
