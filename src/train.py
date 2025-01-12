@@ -39,7 +39,7 @@ class ValueNetwork(nn.Module):
     def forward(self, state):
         return self.fc(state)
 
-class PPOAgent:
+class ProjectAgent:
     def __init__(self):
         self.state_dim = 6
         self.action_dim = 4
@@ -128,7 +128,7 @@ class PPOAgent:
 
 def train_and_save_agent():
     env = TimeLimit(env=HIVPatient(domain_randomization=False), max_episode_steps=200)
-    agent = PPOAgent()
+    agent = ProjectAgent()
     num_episodes = 500
     max_steps = 200
 
