@@ -65,7 +65,9 @@ class ProjectAgent:
         
         
         self.state_dim = 6
+        
         self.action_dim = 4
+        
         self.gamma = 0.95
         self.epsilon_decay = 0.995
         self.batch_size = 64
@@ -79,7 +81,7 @@ class ProjectAgent:
         self.target_network.eval()
 
     def act(self, observation,use_random=False):
-        if use_random or random.random() < self.epsilon:
+        if use_random and random.random() < self.epsilon:
             return env.action_space.sample()
         else:
             observation = torch.tensor(observation,dtype = torch.float32,device=self.device).unsqueeze(0)
@@ -139,7 +141,7 @@ def train_and_save_agent():
         
 
         for t in range(200):
-            action = agent.act(observation)
+            action = agent.act(observation,use_random=True)
             next_observation, reward, done, _, _ = env.step(action)
 
             agent.replay_buffer.push(observation, action, reward, next_observation, done)
