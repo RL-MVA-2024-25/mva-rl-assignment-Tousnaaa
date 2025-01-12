@@ -4,8 +4,11 @@ import torch.optim as optim
 import numpy as np
 from gymnasium.wrappers import TimeLimit
 from env_hiv import HIVPatient
+from tqdm import tqdm
 from collections import deque
+from evaluate import evaluate_HIV
 import random
+from pathlib import Path
 env = TimeLimit(
     env=HIVPatient(domain_randomization=False), max_episode_steps=200
 )
@@ -15,13 +18,19 @@ class DQNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(DQNetwork, self).__init__()
         self.fc = nn.Sequential(
-            nn.Linear(state_dim, 128),
+            nn.Linear(state_dim, 512),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(512, 512),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(512, 512),
             nn.ReLU(),
-            nn.Linear(256, action_dim)
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, action_dim)
         )
 
     def forward(self, state):
@@ -57,10 +66,10 @@ class ProjectAgent:
         
         self.state_dim = 6
         self.action_dim = 4
-        self.gamma = 0.99
+        self.gamma = 0.95
         self.epsilon_decay = 0.995
         self.batch_size = 64
-        self.replay_buffer = ReplayBuffer(10000)
+        self.replay_buffer = ReplayBuffer(20000)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.q_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
         self.target_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
@@ -119,10 +128,10 @@ class ProjectAgent:
 def train_and_save_agent():
     
     agent = ProjectAgent()
-    num_episodes = 500
+    num_episodes = 1000
     target_update_frequency = 10
     
-    for episode in range(num_episodes):
+    for episode in tqdm(range(num_episodes)):
         print(f"Starting episode {episode+1}/{num_episodes}")
         observation, _ = env.reset()
         total_reward = 0
@@ -148,6 +157,13 @@ def train_and_save_agent():
         if episode % target_update_frequency == 0:
             agent.update_target_network()
             print("Updated target network.")
+        if episode == 499 or episode == 999:
+            score = evaluate_HIV(agent,5)
+            file = Path("inter.txt"):
+            with open(file,mode="w") as f :
+                f.write(f"{episode +1}: score\n")
+            
+            
 
     agent.save("DQN_hiv_model")
 
