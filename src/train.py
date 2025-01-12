@@ -73,8 +73,8 @@ class ProjectAgent:
         if use_random or random.random() < self.epsilon:
             return env.action_space.sample()
         else:
-            observaiton = torch.tensor(observation,dtype = torch.float32).unsqueeze(0)
-            q_values = self.model(observation) 
+            observation = torch.tensor(observation,dtype = torch.float32,device=self.device).unsqueeze(0)
+            q_values = self.q_network(observation) 
             return torch.argmax(q_values).item()
                 
 
@@ -84,11 +84,11 @@ class ProjectAgent:
             return
 
         states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
-        states = torch.FloatTensor(states)
-        actions = torch.LongTensor(actions).unsqueeze(1)
-        rewards = torch.FloatTensor(rewards).unsqueeze(1)
-        next_states = torch.FloatTensor(next_states)
-        dones = torch.FloatTensor(dones).unsqueeze(1)
+        states = torch.tensor(states,dtype = torch.float32,device=self.device)
+        actions = torch.tensor(actions,dtype = torch.long,device=self.device).unsqueeze(1)
+        rewards = torch.tensor(rewards,dtype=torch.float32,device = self.device).unsqueeze(1)
+        next_states = torch.tensor(next_states,dtype=torch.float32,device = self.device)
+        dones = torch.tensor(dones,dtype=torch.float32,device = self.device).unsqueeze(1)
 
         q_values = self.q_network(states).gather(1, actions)
 
@@ -142,7 +142,7 @@ def train_and_save_agent():
 
             if done:
                 break
-        agent.epsilon = max(agent.epislon_min,agent.epsilon*agent.epsilon_decay)
+        agent.epsilon = max(agent.epsilon_min,agent.epsilon*agent.epsilon_decay)
         
                     
         if episode % target_update_frequency == 0:
