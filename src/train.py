@@ -151,7 +151,7 @@ def train_and_save_agent():
 
     agent.save("DQN_hiv_model")
 
-    agent.save("PPO_hiv_model")
+    
 
 if __name__ == "__main__":
     train_and_save_agent()
