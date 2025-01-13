@@ -71,7 +71,7 @@ class ProjectAgent:
         
         self.gamma = 0.95
         self.epsilon_decay = 0.996
-        self.batch_size = 64
+        self.batch_size = 128
         self.replay_buffer = ReplayBuffer(10000)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.q_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
@@ -135,9 +135,10 @@ def train_and_save_agent():
     
     num_episodes = 1000
     
-    id_max_ep = 0
-    target_update_frequency = 500
+    
+    target_update_frequency = 400
     max_episode_reward = 0
+    best_eval = 0
     for episode in tqdm(range(num_episodes)):
         print(f"Starting episode {episode+1}/{num_episodes}")
         observation, _ = env.reset()
@@ -145,9 +146,11 @@ def train_and_save_agent():
         
         
 
-        for t in range(100):
+        done = False
+        trunc = False
+        while not (done or trunc):
             action = agent.act(observation,use_random=True)
-            next_observation, reward, done, _, _ = env.step(action)
+            next_observation, reward, done, trunc, _ = env.step(action)
 
             agent.replay_buffer.push(observation, action, reward, next_observation, done)
 
@@ -156,8 +159,6 @@ def train_and_save_agent():
 
             agent.train()
 
-            if done:
-                break
         agent.epsilon = max(agent.epsilon_min,agent.epsilon*agent.epsilon_decay)
         
         
@@ -169,12 +170,13 @@ def train_and_save_agent():
         print(f"Reward : {total_reward}, Epsilon : {agent.epsilon}")  
         if total_reward > max_episode_reward:
             max_episode_reward = total_reward
-            id_max_ep = episode
-            print(f"New max reward")
+            
+            print(f"New max reward.")
             agent.save(f"checkpoints/model_rew_{total_reward}_{episode}")
+        
 
     agent.save("DQN_hiv_model")
-    print(f"Max total reward was : {max_episode_reward} at episode {id_max_ep}")
+    
     
 
 if __name__ == "__main__":
