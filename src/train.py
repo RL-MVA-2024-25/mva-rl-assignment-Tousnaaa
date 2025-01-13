@@ -134,7 +134,8 @@ def train_and_save_agent():
     agent = ProjectAgent()
     
     num_episodes = 1000
-    max_score = 0
+    
+    id_max_ep = 0
     target_update_frequency = 500
     max_episode_reward = 0
     for episode in tqdm(range(num_episodes)):
@@ -144,7 +145,7 @@ def train_and_save_agent():
         
         
 
-        for t in range(10):
+        for t in range(100):
             action = agent.act(observation,use_random=True)
             next_observation, reward, done, _, _ = env.step(action)
 
@@ -168,15 +169,12 @@ def train_and_save_agent():
         print(f"Reward : {total_reward}, Epsilon : {agent.epsilon}")  
         if total_reward > max_episode_reward:
             max_episode_reward = total_reward
-            print(f"New max reward, checking validation score.")
-            score = evaluate_HIV(agent=agent, nb_episode=5)
-            if score > max_score:
-                max_score= score
-                print(f"Score : {score} is new max score, saving agent.")
-                agent.save(f"checkpoints/model_score_{score}") 
+            id_max_ep = episode
+            print(f"New max reward")
+            agent.save(f"checkpoints/model_rew_{total_reward}_{episode}")
 
     agent.save("DQN_hiv_model")
-    print(f"Max total reward was : {max_episode_reward}")
+    print(f"Max total reward was : {max_episode_reward} at episode {id_max_ep}")
     
 
 if __name__ == "__main__":
