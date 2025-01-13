@@ -5,6 +5,7 @@ import numpy as np
 from gymnasium.wrappers import TimeLimit
 from env_hiv import HIVPatient
 from tqdm import tqdm
+import torch.optim.lr_scheduler as lr_scheduler
 from collections import deque
 from evaluate import evaluate_HIV
 import random
@@ -69,14 +70,14 @@ class ProjectAgent:
         self.action_dim = 4
         
         self.gamma = 0.95
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.996
         self.batch_size = 64
-        self.replay_buffer = ReplayBuffer(20000)
+        self.replay_buffer = ReplayBuffer(10000)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.q_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
         self.target_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=1e-3)
-
+        
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
 
@@ -120,6 +121,7 @@ class ProjectAgent:
         }, path)
     def update_target_network(self):
         self.target_network.load_state_dict(self.q_network.state_dict())
+
     def load(self):
         checkpoint = torch.load(save_path,map_location = self.device)
         self.q_network.load_state_dict(checkpoint["q_network"])
@@ -130,8 +132,10 @@ class ProjectAgent:
 def train_and_save_agent():
     
     agent = ProjectAgent()
+    
     num_episodes = 1000
-    target_update_frequency = 100
+    max_score = 0
+    target_update_frequency = 500
     max_episode_reward = 0
     for episode in tqdm(range(num_episodes)):
         print(f"Starting episode {episode+1}/{num_episodes}")
@@ -140,7 +144,7 @@ def train_and_save_agent():
         
         
 
-        for t in range(200):
+        for t in range(10):
             action = agent.act(observation,use_random=True)
             next_observation, reward, done, _, _ = env.step(action)
 
@@ -155,24 +159,26 @@ def train_and_save_agent():
                 break
         agent.epsilon = max(agent.epsilon_min,agent.epsilon*agent.epsilon_decay)
         
+        
                     
         if episode % target_update_frequency == 0:
             agent.update_target_network()
             print("Updated target network.")
-        if episode == 499 or episode == 999:
-            score = evaluate_HIV(agent=agent,nb_episode=5)
-            file = Path("inter.txt")
-            with open(file,mode="w") as f :
-                f.write(f"{episode +1}: {score}\n")
+        
         print(f"Reward : {total_reward}, Epsilon : {agent.epsilon}")  
         if total_reward > max_episode_reward:
             max_episode_reward = total_reward
-            print(f"New max reward, saving model to checkpoints/model_rew_{total_reward}")
-            agent.save(f"checkpoints/model_rew_{total_reward}") 
+            print(f"New max reward, checking validation score.")
+            score = evaluate_HIV(agent=agent, nb_episode=5)
+            if score > max_score:
+                max_score= score
+                print(f"Score : {score} is new max score, saving agent.")
+                agent.save(f"checkpoints/model_score_{score}") 
 
     agent.save("DQN_hiv_model")
     print(f"Max total reward was : {max_episode_reward}")
     
 
 if __name__ == "__main__":
+    
     train_and_save_agent()
