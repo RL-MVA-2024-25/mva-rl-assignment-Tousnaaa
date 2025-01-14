@@ -16,6 +16,9 @@ env = TimeLimit(
 save_path = "DQN_hiv_model"
 
 class DQNetwork(nn.Module):
+    """
+    Model for the q_values prediction.
+    """
     def __init__(self, state_dim, action_dim):
         super(DQNetwork, self).__init__()
         self.fc = nn.Sequential(
@@ -37,6 +40,9 @@ class DQNetwork(nn.Module):
     def forward(self, state):
         return self.fc(state)
 class ReplayBuffer:
+    """
+    Replay buffer class for the training.
+    """
     def __init__(self, capacity):
         self.buffer = deque(maxlen=capacity)
 
@@ -59,32 +65,33 @@ class ReplayBuffer:
 class ProjectAgent:
     def __init__(self):
         
-          
+        #Exploration term -> 1 at the beginning of the training
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        
+        self.epsilon_decay = 0.996
         
         
         self.state_dim = 6
-        
         self.action_dim = 4
-        
         self.gamma = 0.95
-        self.epsilon_decay = 0.996
+        
         self.batch_size = 256
         self.replay_buffer = ReplayBuffer(10000)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        #q_network and target network initialization
         self.q_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
         self.target_network = DQNetwork(self.state_dim, self.action_dim).to(self.device)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=1e-3)
-        
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
 
     def act(self, observation,use_random=False):
         if use_random and random.random() < self.epsilon:
+            #We sample a random element from the action space 
             return env.action_space.sample()
         else:
+            #Or we take the element with the highest estimated Q
             observation = torch.tensor(observation,dtype = torch.float32,device=self.device).unsqueeze(0)
             q_values = self.q_network(observation) 
             return torch.argmax(q_values).item()
