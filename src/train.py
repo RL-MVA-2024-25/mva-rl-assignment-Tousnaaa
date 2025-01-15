@@ -13,6 +13,7 @@ from pathlib import Path
 env = TimeLimit(
     env=HIVPatient(domain_randomization=False), max_episode_steps=200
 )
+#Hardcoded path of the model
 save_path = "DQN_hiv_model"
 
 class DQNetwork(nn.Module):
@@ -114,7 +115,7 @@ class ProjectAgent:
         with torch.no_grad():
             max_next_q_values = self.target_network(next_states).max(1, keepdim=True)[0]
             target_q_values = rewards + self.gamma * max_next_q_values * (1 - dones)
-
+    
         loss = nn.MSELoss()(q_values, target_q_values)
 
         self.optimizer.zero_grad()
@@ -137,12 +138,8 @@ class ProjectAgent:
         
 
 def train_and_save_agent():
-    
     agent = ProjectAgent()
-    
     num_episodes = 1000
-    
-    
     target_update_frequency = 400
     max_episode_reward = 0
     id_ep_max = 0
@@ -150,9 +147,6 @@ def train_and_save_agent():
         print(f"Starting episode {episode+1}/{num_episodes}")
         observation, _ = env.reset()
         total_reward = 0
-        
-        
-
         done = False
         trunc = False
         while not (done or trunc):
@@ -167,13 +161,10 @@ def train_and_save_agent():
             agent.train()
 
         agent.epsilon = max(agent.epsilon_min,agent.epsilon*agent.epsilon_decay)
-        
-        
-                    
+      
         if episode % target_update_frequency == 0:
             agent.update_target_network()
             print("Updated target network.")
-        
         print(f"Reward : {total_reward}, Epsilon : {agent.epsilon}")  
         if total_reward > max_episode_reward:
             max_episode_reward = total_reward
@@ -187,5 +178,5 @@ def train_and_save_agent():
     
 
 if __name__ == "__main__":
-    
+    #Launch training
     train_and_save_agent()
